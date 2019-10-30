@@ -1,4 +1,6 @@
-﻿Shader "Hidden/RaymarchGeneric"
+﻿// Upgrade NOTE: replaced 'mul(UNITY_MATRIX_MVP,*)' with 'UnityObjectToClipPos(*)'
+
+Shader "Hidden/RaymarchGeneric"
 {
 	Properties
 	{
@@ -24,6 +26,8 @@
 			#include "UnityCG.cginc"
 			#include "DistanceFunc.cginc"
 			
+            #define vec2 float2
+            #define vec3 float3
 			uniform sampler2D _CameraDepthTexture;
 			// These are are set by our script (see RaymarchGeneric.cs)
 			uniform sampler2D _MainTex;
@@ -49,9 +53,9 @@
 
 			struct v2f
 			{
-				float4 pos : SV_POSITION;
-				float2 uv : TEXCOORD0;
-				float3 ray : TEXCOORD1;
+				float4 pos : SV_POSITION;//不重要
+				float2 uv : TEXCOORD0;//不重要
+				float3 ray : TEXCOORD1;//携带了视线向量，世界坐标系，进入片段着色器后会自动插值平滑
 			};
 
 			v2f vert (appdata v)
@@ -62,7 +66,7 @@
 				half index = v.vertex.z;
 				v.vertex.z = 0.1;
 				
-				o.pos = mul(UNITY_MATRIX_MVP, v.vertex);
+				o.pos = UnityObjectToClipPos(v.vertex);
 				o.uv = v.uv.xy;
 				
 				#if UNITY_UV_STARTS_AT_TOP
@@ -75,7 +79,7 @@
 				// Dividing by z "normalizes" it in the z axis
 				// Therefore multiplying the ray by some number i gives the viewspace position
 				// of the point on the ray with [viewspace z]=i
-				o.ray /= abs(o.ray.z);
+				o.ray /= abs(o.ray.z);//目的是使z值为1
 
 				// Transform the ray from eyespace to worldspace
 				o.ray = mul(_CameraInvViewMatrix, o.ray);

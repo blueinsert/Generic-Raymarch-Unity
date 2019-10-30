@@ -24,6 +24,7 @@ public class RaymarchGeneric : SceneViewFilter
         {
             if (!_EffectMaterial && _EffectShader)
             {
+                _EffectShader = new Shader();
                 _EffectMaterial = new Material(_EffectShader);
                 _EffectMaterial.hideFlags = HideFlags.HideAndDontSave;
             }
@@ -47,11 +48,12 @@ public class RaymarchGeneric : SceneViewFilter
     void OnDrawGizmos()
     {
         Gizmos.color = Color.green;
-
+        //在scene视图中绘制由摄像机指向视椎体四个顶点的向量
         Matrix4x4 corners = GetFrustumCorners(CurrentCamera);
         Vector3 pos = CurrentCamera.transform.position;
 
         for (int x = 0; x < 4; x++) {
+            //将向量从摄像机坐标系转到世界坐标系
             corners.SetRow(x, CurrentCamera.cameraToWorldMatrix * corners.GetRow(x));
             Gizmos.DrawLine(pos, pos + (Vector3)(corners.GetRow(x)));
         }
@@ -75,11 +77,15 @@ public class RaymarchGeneric : SceneViewFilter
         */
     }
 
+    /// <summary>
+    /// 在所有渲染完成之后调用
+    /// </summary>
     [ImageEffectOpaque]
     void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
         if (!EffectMaterial)
         {
+            //位块传输，简单的赋值
             Graphics.Blit(source, destination); // do nothing
             return;
         }
@@ -87,7 +93,8 @@ public class RaymarchGeneric : SceneViewFilter
         // Set any custom shader variables here.  For example, you could do:
         // EffectMaterial.SetFloat("_MyVariable", 13.37f);
         // This would set the shader uniform _MyVariable to value 13.37
-
+        //设置着色器参数
+        //光线方向，世界坐标系
         EffectMaterial.SetVector("_LightDir", SunLight ? SunLight.forward : Vector3.down);
 
         // Construct a Model Matrix for the Torus
@@ -100,22 +107,25 @@ public class RaymarchGeneric : SceneViewFilter
             Quaternion.Euler(new Vector3(0, 0, (Time.time * 200) % 360)), 
             Vector3.one);
         // Send the torus matrix to our shader
+        //圆环的模型转世界矩阵，定义了圆环的运动
         EffectMaterial.SetMatrix("_MatTorus_InvModel", MatTorus.inverse);
 
         EffectMaterial.SetTexture("_ColorRamp_Material", _MaterialColorRamp);
         EffectMaterial.SetTexture("_ColorRamp_PerfMap", _PerfColorRamp);
-
+        //rayMarch算法最大前进距离
         EffectMaterial.SetFloat("_DrawDistance", _RaymarchDrawDistance);
-
+        //性能调试开关
         if(EffectMaterial.IsKeywordEnabled("DEBUG_PERFORMANCE") != _DebugPerformance) {
             if(_DebugPerformance)
                 EffectMaterial.EnableKeyword("DEBUG_PERFORMANCE");
             else
                 EffectMaterial.DisableKeyword("DEBUG_PERFORMANCE");
         }
-
+        //视椎体顶点向量矩阵，摄像机坐标系
         EffectMaterial.SetMatrix("_FrustumCornersES", GetFrustumCorners(CurrentCamera));
+        //摄像机转世界矩阵
         EffectMaterial.SetMatrix("_CameraInvViewMatrix", CurrentCamera.cameraToWorldMatrix);
+        //摄像机位置，世界坐标系
         EffectMaterial.SetVector("_CameraWS", CurrentCamera.transform.position);
 
         CustomGraphicsBlit(source, destination, EffectMaterial, 0);
@@ -128,6 +138,13 @@ public class RaymarchGeneric : SceneViewFilter
     /// Top Right corner:    row=1
     /// Bottom Right corner: row=2
     /// Bottom Left corner:  row=3
+    /// <summary>
+    /// 返回在摄像机坐标系中定义的由摄像机位置指向近裁剪面的四个顶点的四个向量组成的矩阵
+    /// 第一行：指向左上顶点的向量
+    /// 第二行：指向右上顶点的向量
+    /// 第三行：指向右下顶点的向量
+    /// 第四行：指向左下顶点的向量
+    /// </summary>
     private Matrix4x4 GetFrustumCorners(Camera cam)
     {
         float camFov = cam.fieldOfView;
@@ -165,10 +182,13 @@ public class RaymarchGeneric : SceneViewFilter
     /// 
     /// \warning You may need to account for flipped UVs on DirectX machines due to differing UV semantics
     ///          between OpenGL and DirectX.  Use the shader define UNITY_UV_STARTS_AT_TOP to account for this.
+    /// <summary>
+    /// 使用fxMaterial渲染了一个gl定义的quad,结果图像赋给了dest
+    /// </summary>
     static void CustomGraphicsBlit(RenderTexture source, RenderTexture dest, Material fxMaterial, int passNr)
     {
-        RenderTexture.active = dest;
-
+        RenderTexture.active = dest;//shader为什么能影响到这个？
+        //原图像作为“_MainTex”参数传给着色器
         fxMaterial.SetTexture("_MainTex", source);
 
         GL.PushMatrix();
@@ -181,6 +201,7 @@ public class RaymarchGeneric : SceneViewFilter
         // Here, GL.MultitexCoord2(0, x, y) assigns the value (x, y) to the TEXCOORD0 slot in the shader.
         // GL.Vertex3(x,y,z) queues up a vertex at position (x, y, z) to be drawn.  Note that we are storing
         // our own custom frustum information in the z coordinate.
+        //坐标的z值标识了对应于哪个顶点
         GL.MultiTexCoord2(0, 0.0f, 0.0f);
         GL.Vertex3(0.0f, 0.0f, 3.0f); // BL
 
